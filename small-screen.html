@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>WPPT 2026 — Small screen (resources)</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#12211C;
+    --ink:#FFF8F0;
+    --muted:#B3C4BC;
+    --accent:#FF5C1F;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--navy);color:var(--ink);overflow:hidden;font-family:"Inter",system-ui,sans-serif}
+  #stage{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;padding:6vw;gap:2vw}
+  #stage.fade{animation:fade .4s ease-out}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+
+  .eyebrow{font-size:1.4vw;font-weight:500;color:var(--accent)}
+  h1{font-family:"Archivo",sans-serif;font-weight:700;font-size:3.4vw;line-height:1.08}
+  .links{display:flex;flex-direction:column;gap:1vw;margin-top:1vw}
+  .links div{font-size:1.7vw;line-height:1.3;color:var(--muted)}
+  .links .empty{color:var(--muted);font-style:italic;opacity:.7}
+
+  #logo{position:fixed;left:2vw;bottom:2vw;display:flex;align-items:center;gap:.8vw;opacity:.7;z-index:5}
+  #logo svg{width:2.4vw;height:2.4vw}
+  #logo span{font-family:"Inter",sans-serif;font-size:1.4vw;color:var(--ink)}
+  #logo span b{font-weight:800}
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+
+<div id="logo" aria-label="WPPT 2026">
+  <svg viewBox="0 0 56 56" aria-hidden="true">
+    <circle cx="21" cy="21" r="17" fill="#ff5c1f" fill-opacity="0.82"></circle>
+    <circle cx="36" cy="35" r="18" fill="#fcbe41" fill-opacity="0.82"></circle>
+  </svg>
+  <span><b>WPPT</b> 2026</span>
+</div>
+
+<script src="config.js"></script>
+<script>
+const stage = document.getElementById('stage');
+
+function formatCountdown(seconds){
+  seconds = Math.max(0, Math.round(seconds));
+  const h = Math.floor(seconds / 3600), m = Math.floor((seconds % 3600) / 60), s = seconds % 60;
+  return [h, m, s].map(n => String(n).padStart(2, '0')).join(':');
+}
+
+function renderWaiting(phase){
+  stage.textContent = '';
+  const eyebrow = document.createElement('div'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'WPPT 2026';
+  const h1 = document.createElement('h1'); h1.textContent = 'Starting soon';
+  const links = document.createElement('div'); links.className = 'links';
+  const d = document.createElement('div'); d.textContent = new Date(CONFIG.START_TIME).toLocaleString() + ' · ' + formatCountdown(phase.startsInSeconds);
+  links.appendChild(d);
+  stage.append(eyebrow, h1, links);
+}
+
+function render(talk){
+  stage.textContent = '';
+  const eyebrow = document.createElement('div'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'Now playing';
+  const h1 = document.createElement('h1'); h1.textContent = talk.title;
+  const links = document.createElement('div'); links.className = 'links';
+  if (talk.links.length) {
+    talk.links.forEach(l => { const d = document.createElement('div'); d.textContent = l; links.appendChild(d); });
+  } else {
+    const d = document.createElement('div'); d.className = 'empty'; d.textContent = 'No linked resources for this talk.';
+    links.appendChild(d);
+  }
+  stage.append(eyebrow, h1, links);
+  stage.classList.remove('fade'); void stage.offsetWidth; stage.classList.add('fade');
+}
+
+let currentIdx = -1;
+function tick(){
+  const phase = CONFIG.currentPhase();
+  if (phase.loading) return;
+  if (phase.notStarted) {
+    currentIdx = -1;
+    renderWaiting(phase);
+    return;
+  }
+  if (phase.index !== currentIdx) {
+    currentIdx = phase.index;
+    render(phase.talk);
+  }
+}
+
+(async () => {
+  await CONFIG.refreshStartAt();
+  tick();
+  setInterval(tick, 1000);
+  // Remote restart: when config.json's startAt changes (new deploy),
+  // forget the current talk so the next tick re-renders immediately.
+  CONFIG.startPolling(() => { currentIdx = -1; });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>WPPT 2026 — Big screen (talks)</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#000;overflow:hidden}
+  #player{position:absolute;inset:0;width:100vw;height:100vh}
+  #player iframe{width:100%;height:100%;border:0}
+  #status{position:fixed;left:0;right:0;bottom:0;padding:10px 16px;font:14px system-ui,sans-serif;color:#8d93bd;background:rgba(0,0,0,.6);display:none}
+  body.show-status #status{display:block}
+</style>
+</head>
+<body>
+
+<div id="player"></div>
+<div id="status">Loading…</div>
+
+<script src="config.js"></script>
+<script>
+const statusEl = document.getElementById('status');
+function setStatus(msg){ document.body.classList.add('show-status'); statusEl.textContent = msg; }
+function clearStatus(){ document.body.classList.remove('show-status'); }
+
+function formatCountdown(seconds){
+  seconds = Math.max(0, Math.round(seconds));
+  const h = Math.floor(seconds / 3600), m = Math.floor((seconds % 3600) / 60), s = seconds % 60;
+  return [h, m, s].map(n => String(n).padStart(2, '0')).join(':');
+}
+
+const tag = document.createElement('script');
+tag.src = 'https://www.youtube.com/iframe_api';
+document.head.appendChild(tag);
+
+let player;
+let playingIndex = -1;
+let apiReady = false;
+
+function playIndex(index, seekSeconds){
+  const talk = CONFIG.TALKS[index];
+  playingIndex = index;
+  player.loadVideoById({ videoId: talk.id, startSeconds: seekSeconds || 0 });
+}
+
+function createPlayer(phase){
+  player = new YT.Player('player', {
+    width: '100%',
+    height: '100%',
+    videoId: phase.talk.id,
+    playerVars: {
+      start: Math.floor(phase.offset),
+      autoplay: 1,
+      controls: 0,
+      disablekb: 1,
+      fs: 0,
+      modestbranding: 1,
+      rel: 0,
+      iv_load_policy: 3,
+      playsinline: 1,
+    },
+    events: {
+      onReady: () => { playingIndex = phase.index; clearStatus(); try { player.playVideo(); } catch(e){} },
+      onError: (e) => { setStatus('Video error (code ' + e.data + ') on "' + CONFIG.TALKS[playingIndex]?.title + '". Advancing…'); setTimeout(advance, 3000); },
+      onStateChange: (e) => { if (e.data === YT.PlayerState.ENDED) advance(); },
+    },
+  });
+}
+
+window.onYouTubeIframeAPIReady = () => { apiReady = true; };
+
+function advance(){
+  const next = (playingIndex + 1) % CONFIG.TALKS.length;
+  playIndex(next, 0);
+}
+
+/* Main loop: waits for the scheduled start, then creates the player once
+   and keeps it on schedule. Also doubles as the resync check — if the
+   clock-computed "current talk" drifts away from what's actually
+   playing (buffering hiccup, someone paused, etc.), jump back onto
+   schedule rather than silently falling further behind. */
+function mainLoop(){
+  const phase = CONFIG.currentPhase();
+
+  if (phase.loading) return;
+
+  if (phase.notStarted) {
+    setStatus('Starting at ' + new Date(CONFIG.START_TIME).toLocaleString() + ' — ' + formatCountdown(phase.startsInSeconds) + ' remaining');
+    return;
+  }
+
+  if (!apiReady) return;
+
+  if (!player) { createPlayer(phase); return; }
+  if (typeof player.getCurrentTime !== 'function') return;
+
+  if (phase.index !== playingIndex) {
+    playIndex(phase.index, phase.offset);
+    return;
+  }
+  const actual = player.getCurrentTime();
+  if (Math.abs(actual - phase.offset) > 8) {
+    try { player.seekTo(phase.offset, true); } catch(e){}
+  }
+}
+
+(async () => {
+  await CONFIG.refreshStartAt();
+  setInterval(mainLoop, 1000);
+  // Remote restart: when config.json's startAt changes (new deploy),
+  // forget the current video so the main loop reloads it from scratch
+  // even if the resolved talk index happens to be the same as before.
+  CONFIG.startPolling(() => { playingIndex = -1; });
+})();
+
+/* Most TVs/kiosk browsers block autoplay with sound unless the browser
+   is launched with an autoplay-allowed flag, e.g. for Chrome:
+     chromium --autoplay-policy=no-user-gesture-required --kiosk big-screen.html */
+</script>
+</body>
+</html>
