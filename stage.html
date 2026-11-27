@@ -199,6 +199,11 @@ CONFIG.followReloads = false;
    SCHEDULE DATA  (WPPT 2026 — 1st Workshop on Privacy-Preserving Technologies)
    Monday, 7 December 2026, Hong Kong time (UTC+8). Single track, no rooms.
    kind: session | break | keynote | talk | divider
+
+   This built-in copy is the fallback. The live schedule comes from the
+   main website's program page (privacypreserving.tech/program), synced
+   every 30 min during the conference by the stage-schedule-sync function
+   and served at /api/stage-schedule; see loadSchedule() below.
    ===================================================================== */
 const S = [
   {id:'registration', start:'08:30', end:'09:00', kind:'break', title:'Registration', desc:'', speakers:[]},
@@ -208,7 +213,7 @@ const S = [
   {id:'t1',  start:'09:30', end:'09:45', kind:'talk', title:'(Issuer-Hiding) Blind Signatures from VOLE-in-the-Head', speakers:['Marvin Beckmann, Technical University of Denmark']},
   {id:'t2',  start:'09:45', end:'10:00', kind:'talk', title:'k-Anonymous Group Signatures', speakers:['Andrey Bozhko, University of Luxembourg']},
   {id:'t3',  start:'10:00', end:'10:15', kind:'talk', title:'Keyed-Verification Anonymous Credentials with Highly Efficient Partial Disclosure', speakers:['Omid Mirzamohammadi, KU Leuven']},
-  {id:'t4',  start:'10:15', end:'10:30', kind:'talk', title:'Formally Verifying an Anonymous Credential Protocol: Lessons from OpenAC', speakers:['Alex Kuzmin and Vikas Rushi, Ethereum Foundation']},
+  {id:'t4',  start:'10:15', end:'10:30', kind:'talk', title:'OpenAC+: Client Side Proving for Zero Knowledge Anonymous Credentials', speakers:['Moven Tsai, Ethereum Foundation']},
   {id:'cb1', start:'10:30', end:'11:00', kind:'break', title:'Coffee break', desc:'', speakers:[]},
   {id:'div-pir',       kind:'divider', title:'PIR & MPC'},
   {id:'k2',  start:'11:00', end:'11:25', kind:'keynote', tag:'Keynote 2', title:'PIR: Foundations, Constructions, and Extensions', speakers:['Mingli Wu, The Hong Kong Polytechnic University']},
@@ -871,6 +876,25 @@ async function runExport(scope){
   window.__EXP_DONE = {done, total:items.length, failMsg};
 }
 
+/* ---------- live schedule from the main website ---------- */
+const SCHEDULE_POLL_MS = 5 * 60 * 1000;
+let scheduleStamp = null;
+async function loadSchedule(){
+  let data;
+  try {
+    const res = await fetch('/api/stage-schedule?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return;
+    data = await res.json();
+  } catch(e){ return; }
+  if (!Array.isArray(data.items) || data.items.length < 10) return;
+  const stamp = JSON.stringify(data.items);
+  if (stamp === scheduleStamp) return;
+  scheduleStamp = stamp;
+  S.length = 0; S.push(...data.items);    // replace in place: S is const
+  if (state.auto) state.idx = liveState().idx;
+  render(true);
+}
+
 /* ---------- boot ---------- */
 fit();
 kvInit(); pxInit();
@@ -879,6 +903,8 @@ render(true);
 wake();
 (async () => {
   await CONFIG.boot();   // server clock
+  await loadSchedule();
+  setInterval(loadSchedule, SCHEDULE_POLL_MS);
   tick();
   setInterval(tick, 15000);
   CONFIG.startPolling();  // keeps the clock offset fresh
