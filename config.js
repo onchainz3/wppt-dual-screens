@@ -1,6 +1,6 @@
 /* =====================================================================
    Shared config + shared clock logic for both screens.
-   Both big-screen.html and small-screen.html load this one file and
+   Both big.html and small.html load this one file and
    independently compute "what should be showing right now" from
    Date.now() against the same TALKS list below — no server, no
    websocket, no manual start button. As long as both pages are open

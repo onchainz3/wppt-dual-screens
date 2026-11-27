@@ -5,3 +5,14 @@
   for = "/config.json"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
+
+# Old long URLs keep working for any screen still pointed at them
+[[redirects]]
+  from = "/big-screen.html"
+  to = "/big.html"
+  status = 301
+
+[[redirects]]
+  from = "/small-screen.html"
+  to = "/small.html"
+  status = 301
