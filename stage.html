@@ -191,8 +191,10 @@ button.primary{background:var(--lime);border-color:var(--lime);color:var(--navy-
 <script>
 /* Stage screen: the session schedule for the workshop room.
    Design and content from github.com/onchainz3/wppt-session-screens.
-   Uses config.js for the server clock (CONFIG.now) and the remote
-   "Reload all screens" button on control.html. */
+   Uses config.js only for the server clock (CONFIG.now). It runs on its
+   own schedule, not the talks playlist, so it ignores the reload and
+   restart buttons on control.html. */
+CONFIG.followReloads = false;
 /* =====================================================================
    SCHEDULE DATA  (WPPT 2026 — 1st Workshop on Privacy-Preserving Technologies)
    Monday, 7 December 2026, Hong Kong time (UTC+8). Single track, no rooms.
@@ -876,10 +878,10 @@ if (!readHash()) { const ls = liveState(); state.idx = ls.idx; }
 render(true);
 wake();
 (async () => {
-  await CONFIG.boot();   // server clock + remote reload
+  await CONFIG.boot();   // server clock
   tick();
   setInterval(tick, 15000);
-  CONFIG.startPolling();
+  CONFIG.startPolling();  // keeps the clock offset fresh
 })();
 </script>
 </body>
