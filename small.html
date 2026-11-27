@@ -21,12 +21,9 @@
 
   .eyebrow{font-size:1.4vw;font-weight:500;color:var(--accent)}
   h1{font-family:"Archivo",sans-serif;font-weight:700;font-size:3.4vw;line-height:1.08}
-  .links{display:flex;flex-direction:column;gap:1.2vw;margin-top:1vw}
-  .links .empty{font-size:1.7vw;line-height:1.3;color:var(--muted);font-style:italic;opacity:.7}
-  .res-row{display:flex;align-items:center;gap:1.1vw}
-  .res-row .qr{width:5.6vw;height:5.6vw;flex:none;background:#fff;padding:3px}
-  .res-row .qr svg{display:block;width:100%;height:100%}
-  .res-row .label{font-size:1.7vw;line-height:1.3;color:var(--muted);word-break:break-word}
+  .links{display:flex;flex-direction:column;gap:1vw;margin-top:1vw}
+  .links div{font-size:1.7vw;line-height:1.3;color:var(--muted)}
+  .links .empty{color:var(--muted);font-style:italic;opacity:.7}
 
   #logo{position:fixed;left:2vw;bottom:2vw;display:flex;align-items:center;gap:.8vw;opacity:.7;z-index:5}
   #logo svg{width:2.4vw;height:2.4vw}
@@ -47,35 +44,8 @@
 </div>
 
 <script src="config.js"></script>
-<script src="qrcode.js"></script>
 <script>
 const stage = document.getElementById('stage');
-
-/* Emails -> mailto:, bare domains/paths -> https://, anything already
-   with a scheme is left as-is. */
-function resolveUrl(raw){
-  if (raw.includes('@') && !raw.includes('/') && !raw.includes(' ')) return 'mailto:' + raw;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) return raw;
-  return 'https://' + raw;
-}
-
-function makeQr(url){
-  const qr = qrcode(0, 'M');
-  qr.addData(url);
-  qr.make();
-  const box = document.createElement('div');
-  box.className = 'qr';
-  box.innerHTML = qr.createSvgTag({ scalable: true, margin: 4 });
-  return box;
-}
-
-function addResourceRow(container, label, url){
-  const row = document.createElement('div'); row.className = 'res-row';
-  row.append(makeQr(url));
-  const span = document.createElement('div'); span.className = 'label'; span.textContent = label;
-  row.append(span);
-  container.appendChild(row);
-}
 
 function formatCountdown(seconds){
   seconds = Math.max(0, Math.round(seconds));
@@ -98,12 +68,10 @@ function render(talk){
   const eyebrow = document.createElement('div'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'Now playing';
   const h1 = document.createElement('h1'); h1.textContent = talk.title;
   const links = document.createElement('div'); links.className = 'links';
-
-  addResourceRow(links, 'youtu.be/' + talk.id, 'https://youtu.be/' + talk.id);
   if (talk.links.length) {
-    talk.links.forEach(l => addResourceRow(links, l, resolveUrl(l)));
+    talk.links.forEach(l => { const d = document.createElement('div'); d.textContent = l; links.appendChild(d); });
   } else {
-    const d = document.createElement('div'); d.className = 'empty'; d.textContent = 'No other linked resources for this talk.';
+    const d = document.createElement('div'); d.className = 'empty'; d.textContent = 'No linked resources for this talk.';
     links.appendChild(d);
   }
   stage.append(eyebrow, h1, links);
