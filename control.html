@@ -60,6 +60,9 @@
     <button id="reload" class="primary">Reload both screens</button>
     <p class="hint">Use this when the big and small screens look out of step. Both reload and pick up at the right point in the current talk, usually within 15 seconds.</p>
 
+    <button id="next">Next talk ›</button>
+    <p class="hint" id="nextHint">Skips both screens to the start of the next talk.</p>
+
     <button id="restart">Restart from talk 1</button>
     <p class="hint">Starts the whole playlist again from the first talk on the big and small screens.</p>
 
@@ -79,11 +82,11 @@ const setPin = v => { try { v ? localStorage.setItem(PIN_KEY, v) : localStorage.
 function say(text, kind){ $('msg').textContent = text; $('msg').className = kind || ''; }
 function show(id){ ['login','panel'].forEach(s => $(s).classList.toggle('hidden', s !== id)); }
 
-async function send(action, pin){
+async function send(action, pin, extra){
   const res = await fetch('/api/control', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ pin, action }),
+    body: JSON.stringify({ pin, action, ...extra }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || ('error ' + res.status));
@@ -100,10 +103,10 @@ $('unlock').onclick = async () => {
 };
 $('pin').addEventListener('keydown', e => { if (e.key === 'Enter') $('unlock').click(); });
 
-async function act(btn, action, confirmText, doneText){
+async function act(btn, action, confirmText, doneText, extra){
   if (confirmText && !confirm(confirmText)) return;
   btn.disabled = true; say('Sending…');
-  try { await send(action, getPin()); say(doneText, 'ok'); }
+  try { await send(action, getPin(), extra); await CONFIG.syncNow(); tick(); say(doneText, 'ok'); }
   catch(e){
     if (e.message === 'wrong PIN') { setPin(''); show('login'); say('PIN changed — enter it again.', 'err'); }
     else say('Failed: ' + e.message, 'err');
@@ -112,6 +115,19 @@ async function act(btn, action, confirmText, doneText){
 }
 $('reload').onclick = e => act(e.target, 'reload', null, 'Sent. Both screens reload within 15 seconds.');
 $('restart').onclick = e => act(e.target, 'restart', 'Restart the playlist from talk 1 on the big and small screens?', 'Sent. Both screens restart from talk 1 within 15 seconds.');
+/* Next talk: pick the start time that makes the next talk begin right now. */
+function nextTalk(){
+  const p = CONFIG.currentPhase();
+  if (p.loading || p.notStarted) return null;
+  const index = (p.index + 1) % CONFIG.TALKS.length;
+  const before = CONFIG.TALKS.slice(0, index).reduce((s, t) => s + t.duration, 0);
+  return { index, talk: CONFIG.TALKS[index], startAt: new Date(CONFIG.now() - before * 1000).toISOString() };
+}
+$('next').onclick = e => {
+  const n = nextTalk();
+  if (!n) { say('The playlist has not started yet.', 'err'); return; }
+  act(e.target, 'next', null, 'Sent. Both screens move to "' + n.talk.title + '" within 15 seconds.', { startAt: n.startAt });
+};
 $('logout').onclick = () => { setPin(''); $('pin').value = ''; show('login'); say(''); };
 
 function fmt(s){ s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60); return m + ':' + String(s % 60).padStart(2, '0'); }
@@ -121,6 +137,8 @@ function tick(){
   if (p.notStarted) { $('nowTitle').textContent = 'Not started yet'; $('nowMeta').textContent = 'Starts ' + new Date(CONFIG.START_TIME).toLocaleString(); return; }
   $('nowTitle').textContent = p.talk.title;
   $('nowMeta').textContent = 'Talk ' + (p.index + 1) + ' of ' + CONFIG.TALKS.length + ' · ' + fmt(p.offset) + ' / ' + fmt(p.talk.duration);
+  const n = nextTalk();
+  if (n) $('nextHint').textContent = 'Skips both screens to the start of talk ' + (n.index + 1) + ': ' + n.talk.title + '.';
 }
 
 CONFIG.followReloads = false;  // this page must not reload itself
