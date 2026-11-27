@@ -1,8 +1,8 @@
 /* =====================================================================
    Shared config + shared clock logic for both screens.
    Both big.html and small.html load this one file and
-   independently compute "what should be showing right now" from
-   Date.now() against the same TALKS list below — no server, no
+   independently compute "what should be showing right now" from the
+   (server-corrected) clock against the same TALKS list below — no
    websocket, no manual start button. As long as both pages are open
    and have this file, they stay in step, and either one can reload or
    a TV can reboot without breaking the loop.
@@ -57,55 +57,103 @@ const TALKS = [
    After it, the playlist loops forever, anchored to this instant — so
    the first lap always starts clean at talk #1, second 0.
 
-   START_TIME is NOT hardcoded here — it's read from config.json
-   ("startAt", e.g. '2026-12-07T08:30:00+08:00') and re-checked every
-   POLL_INTERVAL_MS. Editing config.json and pushing a new deploy is
-   the remote-restart mechanism: change "startAt" to right now (or any
-   new value) and every screen that polls picks it up and restarts the
-   loop from talk #1 within one poll interval — no direct access to
-   the TVs needed. */
-const POLL_INTERVAL_MS = 30000;
+   START_TIME comes from two places, and the LATER of the two wins:
+     - config.json "startAt" (e.g. '2026-12-07T08:30:00+08:00'), changed
+       by editing the file and redeploying;
+     - the "Restart from talk 1" button on control.html, stored by the
+       /api/control function.
 
-const CONFIG = { TALKS, START_TIME: null };
+   Remote control (control.html, PIN protected):
+     - "Reload both screens" makes every open screen reload itself.
+     - "Restart from talk 1" sets a new start time to now, then reloads.
+   Screens check /api/control every CONTROL_POLL_MS.
+
+   Clock: TVs' own clocks are often off by seconds or minutes, which
+   would put the two screens permanently out of step. So both screens
+   use the server's clock instead — CONFIG.now() is Date.now() corrected
+   by the offset measured against /api/control. */
+const CONFIG_POLL_MS = 30000;
+const CONTROL_POLL_MS = 15000;
+
+const CONFIG = { TALKS, START_TIME: null, followReloads: true };  // control.html sets followReloads = false
 CONFIG.cycleLength = TALKS.reduce((s, t) => s + t.duration, 0);
 
-let lastStartAtRaw = null;
+/* ---- server clock ---- */
+let clockOffset = 0;        // server time minus local time, in ms
+const clockSamples = [];    // recent { rtt, offset } measurements
+CONFIG.now = () => Date.now() + clockOffset;
 
-async function fetchStartAt(){
-  const res = await fetch('config.json?t=' + Date.now(), { cache: 'no-store' });
-  const data = await res.json();
-  return data.startAt;
+let fileStartAt = null;     // from config.json
+let controlStartAt = null;  // from /api/control
+let lastReloadAt;           // undefined until the first successful poll
+
+function applyStartTime(){
+  const times = [fileStartAt, controlStartAt].filter(Boolean).map(s => new Date(s).getTime());
+  const next = times.length ? Math.max(...times) : null;
+  const changed = next !== CONFIG.START_TIME;
+  CONFIG.START_TIME = next;
+  return changed;
 }
 
-/* Called on boot, and again every poll: applies config.json's startAt.
-   Returns true if it actually changed (i.e. a restart should happen). */
-CONFIG.refreshStartAt = async function refreshStartAt(){
-  let raw;
-  try { raw = await fetchStartAt(); } catch(e){ return false; }
-  if (raw === lastStartAtRaw) return false;
-  lastStartAtRaw = raw;
-  CONFIG.START_TIME = new Date(raw).getTime();
+async function pollConfigFile(){
+  try {
+    const res = await fetch('config.json?t=' + Date.now(), { cache: 'no-store' });
+    fileStartAt = (await res.json()).startAt || null;
+  } catch(e){}
+}
+
+/* Returns false if the control endpoint isn't reachable (e.g. opened as a
+   plain file), so the screens keep working on config.json alone. */
+async function pollControl(){
+  let data, sent, received;
+  try {
+    sent = Date.now();
+    const res = await fetch('/api/control?t=' + sent, { cache: 'no-store' });
+    received = Date.now();
+    if (!res.ok) return false;
+    data = await res.json();
+  } catch(e){ return false; }
+
+  // Use the recent sample with the shortest round trip: it's the most
+  // accurate. Only the last few count, so if the TV's own clock jumps
+  // (e.g. it syncs itself) the offset follows within a couple of minutes.
+  const rtt = received - sent;
+  clockSamples.push({ rtt, offset: data.serverTime + rtt / 2 - received });
+  if (clockSamples.length > 6) clockSamples.shift();
+  clockOffset = clockSamples.reduce((a, b) => (b.rtt < a.rtt ? b : a)).offset;
+
+  if (CONFIG.followReloads && lastReloadAt !== undefined && data.reloadAt && data.reloadAt !== lastReloadAt) {
+    location.reload();
+    return true;
+  }
+  lastReloadAt = data.reloadAt || null;
+  controlStartAt = data.startAt || null;
   return true;
+}
+
+/* Call once on page load before using currentPhase(). Takes a few quick
+   clock samples so the screens are accurate from the first second. */
+CONFIG.boot = async function boot(){
+  await pollConfigFile();
+  for (let i = 0; i < 3; i++) { if (!(await pollControl())) break; }
+  applyStartTime();
 };
 
-/* Call once on page load before using currentPhase(), then call
-   CONFIG.refreshStartAt() on an interval (both screens do this) and
-   react to a true return value by resetting whatever "currently
-   showing" tracking variable the page keeps, so the next tick
-   re-renders/reloads even if the resolved index happens to be the same. */
+/* Then call this once. onChange runs when the start time changes, so the
+   page can reset its "currently showing" tracking and re-render. */
 CONFIG.startPolling = function startPolling(onChange){
-  setInterval(async () => {
-    const changed = await CONFIG.refreshStartAt();
-    if (changed && onChange) onChange();
-  }, POLL_INTERVAL_MS);
+  const check = () => { if (applyStartTime() && onChange) onChange(); };
+  setInterval(async () => { await pollConfigFile(); check(); }, CONFIG_POLL_MS);
+  setInterval(async () => { await pollControl(); check(); }, CONTROL_POLL_MS);
 };
 
 /* ---- shared phase computation: identical on both screens ----
    Returns which talk is "playing" right now and how far into it we
-   are, purely from wall-clock time. Both pages call this every tick. */
+   are, purely from (server-corrected) clock time. Both pages call this
+   every tick. */
 CONFIG.currentPhase = function currentPhase(now){
   if (CONFIG.START_TIME === null) return { loading: true };
-  now = now ?? Date.now();
+  now = now ?? CONFIG.now();
   if (now < CONFIG.START_TIME) return { notStarted: true, startsInSeconds: (CONFIG.START_TIME - now) / 1000 };
   const elapsed = ((now - CONFIG.START_TIME) / 1000) % CONFIG.cycleLength;
   let acc = 0;
