@@ -53,6 +53,7 @@ function createPlayer(phase){
     playerVars: {
       start: Math.floor(phase.offset),
       autoplay: 1,
+      mute: 1,
       controls: 0,
       disablekb: 1,
       fs: 0,
@@ -62,7 +63,7 @@ function createPlayer(phase){
       playsinline: 1,
     },
     events: {
-      onReady: () => { playingIndex = phase.index; clearStatus(); try { player.playVideo(); } catch(e){} },
+      onReady: () => { playingIndex = phase.index; clearStatus(); try { player.mute(); player.playVideo(); } catch(e){} },
       onError: (e) => { setStatus('Video error (code ' + e.data + ') on "' + CONFIG.TALKS[playingIndex]?.title + '". Advancing…'); setTimeout(advance, 3000); },
       onStateChange: (e) => { if (e.data === YT.PlayerState.ENDED) advance(); },
     },
@@ -115,8 +116,10 @@ function mainLoop(){
   CONFIG.startPolling(() => { playingIndex = -1; });
 })();
 
-/* Most TVs/kiosk browsers block autoplay with sound unless the browser
-   is launched with an autoplay-allowed flag, e.g. for Chrome:
+/* The player is muted by default (mute: 1 + player.mute()), which also
+   lets browsers autoplay it without any special flags. To play with
+   sound, remove both, and launch the browser with an autoplay-allowed
+   flag, e.g. for Chrome:
      chromium --autoplay-policy=no-user-gesture-required --kiosk big.html */
 </script>
 </body>
