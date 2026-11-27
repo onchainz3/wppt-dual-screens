@@ -57,14 +57,20 @@ const TALKS = [
    After it, the playlist loops forever, anchored to this instant — so
    the first lap always starts clean at talk #1, second 0.
 
-   START_TIME comes from two places, and the LATER of the two wins:
+   START_TIME comes from two places:
      - config.json "startAt" (e.g. '2026-12-07T08:30:00+08:00'), changed
        by editing the file and redeploying;
-     - the "Restart from talk 1" button on control.html, stored by the
-       /api/control function.
+     - the "Next talk" / "Restart from talk 1" buttons on control.html,
+       stored by the /api/control function with the time they were
+       pressed (setAt).
+   A button press wins if it happened after config.json's startAt, so
+   config.json can still schedule a future start, and pressing a button
+   once the loop is running takes over.
 
    Remote control (control.html, PIN protected):
      - "Reload both screens" makes every open screen reload itself.
+     - "Next talk" shifts the start time so the next talk begins now
+       (no reload: screens switch on their next poll).
      - "Restart from talk 1" sets a new start time to now, then reloads.
    Screens check /api/control every CONTROL_POLL_MS.
 
@@ -85,11 +91,14 @@ CONFIG.now = () => Date.now() + clockOffset;
 
 let fileStartAt = null;     // from config.json
 let controlStartAt = null;  // from /api/control
+let controlSetAt = null;    // when that was set (ms)
 let lastReloadAt;           // undefined until the first successful poll
 
 function applyStartTime(){
-  const times = [fileStartAt, controlStartAt].filter(Boolean).map(s => new Date(s).getTime());
-  const next = times.length ? Math.max(...times) : null;
+  const fileT = fileStartAt ? new Date(fileStartAt).getTime() : null;
+  const ctlT = controlStartAt ? new Date(controlStartAt).getTime() : null;
+  let next = fileT;
+  if (ctlT !== null && (fileT === null || (controlSetAt ?? ctlT) >= fileT)) next = ctlT;
   const changed = next !== CONFIG.START_TIME;
   CONFIG.START_TIME = next;
   return changed;
@@ -128,6 +137,7 @@ async function pollControl(){
   }
   lastReloadAt = data.reloadAt || null;
   controlStartAt = data.startAt || null;
+  controlSetAt = data.setAt || null;
   return true;
 }
 
@@ -138,6 +148,10 @@ CONFIG.boot = async function boot(){
   for (let i = 0; i < 3; i++) { if (!(await pollControl())) break; }
   applyStartTime();
 };
+
+/* Re-read /api/control right away (control.html calls this after a button
+   press so its "should be playing" card updates immediately). */
+CONFIG.syncNow = async function syncNow(){ await pollControl(); return applyStartTime(); };
 
 /* Then call this once. onChange runs when the start time changes, so the
    page can reset its "currently showing" tracking and re-render. */
