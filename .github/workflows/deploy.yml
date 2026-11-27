@@ -1,0 +1,38 @@
+# Deploys the site to Netlify (screens.privacypreserving.tech) whenever
+# something is merged into main. Can also be run by hand from the Actions tab.
+#
+# Needs one repo secret: NETLIFY_AUTH_TOKEN, a Netlify personal access token
+# (app.netlify.com -> User settings -> Applications -> Personal access tokens).
+name: Deploy to Netlify
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: netlify-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: 04a2a440-d6df-4e48-81f1-03cac986e285
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # @netlify/blobs, needed by the functions in netlify/functions
+      - run: npm ci
+
+      # Plain static files: no build step, publish the repo root.
+      - run: npx --yes netlify-cli@27.17.0 deploy --prod --no-build --dir . --site "$NETLIFY_SITE_ID" --message "GitHub ${{ github.sha }}"
