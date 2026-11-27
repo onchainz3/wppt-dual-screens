@@ -3,3 +3,4 @@
 
 # Local Claude Code / Netlify MCP skills (auto-installed by `netlify init`)
 .claude
+node_modules

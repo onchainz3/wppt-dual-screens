@@ -107,7 +107,7 @@ function mainLoop(){
 }
 
 (async () => {
-  await CONFIG.refreshStartAt();
+  await CONFIG.boot();
   setInterval(mainLoop, 1000);
   // Remote restart: when config.json's startAt changes (new deploy),
   // forget the current video so the main loop reloads it from scratch

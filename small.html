@@ -94,7 +94,7 @@ function tick(){
 }
 
 (async () => {
-  await CONFIG.refreshStartAt();
+  await CONFIG.boot();
   tick();
   setInterval(tick, 1000);
   // Remote restart: when config.json's startAt changes (new deploy),
