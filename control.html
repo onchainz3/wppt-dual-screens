@@ -57,11 +57,11 @@
       <div class="meta" id="nowMeta"></div>
     </div>
 
-    <button id="reload" class="primary">Reload both screens</button>
-    <p class="hint">Use this when the screens look out of step. Both reload and pick up at the right point in the current talk, usually within 15 seconds.</p>
+    <button id="reload" class="primary">Reload all screens</button>
+    <p class="hint">Use this when the screens look out of step. Big, small and stage all reload and pick up at the right point, usually within 15 seconds.</p>
 
     <button id="restart">Restart from talk 1</button>
-    <p class="hint">Starts the whole playlist again from the first talk on both screens.</p>
+    <p class="hint">Starts the talks playlist again from the first talk on the big and small screens. The stage screen just reloads; it follows the session schedule.</p>
 
     <button id="logout" class="link">Forget PIN on this phone</button>
   </section>
@@ -110,8 +110,8 @@ async function act(btn, action, confirmText, doneText){
   }
   btn.disabled = false;
 }
-$('reload').onclick = e => act(e.target, 'reload', null, 'Sent. Both screens reload within 15 seconds.');
-$('restart').onclick = e => act(e.target, 'restart', 'Restart the playlist from talk 1 on both screens?', 'Sent. Both screens restart from talk 1 within 15 seconds.');
+$('reload').onclick = e => act(e.target, 'reload', null, 'Sent. All screens reload within 15 seconds.');
+$('restart').onclick = e => act(e.target, 'restart', 'Restart the playlist from talk 1 on the big and small screens?', 'Sent. Big and small screens restart from talk 1 within 15 seconds.');
 $('logout').onclick = () => { setPin(''); $('pin').value = ''; show('login'); say(''); };
 
 function fmt(s){ s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60); return m + ':' + String(s % 60).padStart(2, '0'); }

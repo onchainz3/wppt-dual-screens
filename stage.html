@@ -1,0 +1,886 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>WPPT 2026 — Stage screen (sessions)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#12211C;
+  --navy-deep:#0B1915;
+  --block:#1C352B;
+  --lime:#FF5C1F;
+  --ink:#FFF8F0;
+  --muted:#B3C4BC;
+  --panel:rgba(11,25,21,.92);
+  --line:rgba(179,196,188,.35);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--navy);color:var(--ink);overflow:hidden;font-family:"Inter",system-ui,sans-serif}
+body.idle{cursor:none}
+
+/* ---------- 1920×1080 stage, scaled to fit any screen ---------- */
+#stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;transform-origin:center;background:var(--navy);overflow:hidden}
+#pixels{display:none}
+#pxcanvas{position:absolute;left:0;top:0;width:1920px;height:1080px;display:none}
+body.kv #pxcanvas{display:none}
+#pixels rect{fill:var(--block)}
+
+#content{position:absolute;left:232px;top:190px;width:1120px;display:flex;flex-direction:column;gap:34px}
+#content.in{animation:fade .45s ease-out}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+.meta{font-size:30px;color:var(--muted);letter-spacing:.01em;display:flex;gap:28px;align-items:center}
+.meta b{font-weight:500;color:var(--ink)}
+
+.block{display:block}
+.title{font-family:"Archivo",sans-serif;font-weight:700;line-height:1.04;letter-spacing:-.02em;font-size:112px;padding:4px 0 8px}
+.title.m{font-size:76px}
+.title.l{font-size:56px;line-height:1.1}
+.title.xl{font-size:40px;line-height:1.15}
+.desc{font-family:"Inter",sans-serif;font-weight:400;font-size:46px;line-height:1.28;padding:6px 0}
+.desc.s{font-size:38px}
+.speakers{display:flex;flex-wrap:wrap;gap:20px 52px;font-size:38px;line-height:1.2}
+.speakers span{display:inline-flex;align-items:center}
+.sp-note{font-size:30px;color:var(--muted)}
+
+/* ---------- Key visual: first slide of every room ---------- */
+#kv{position:absolute;inset:0;display:none}
+body.kv #kv{display:block}
+body.kv #content,body.kv #pixels,body.kv #dy{display:none}
+body.kv #logo{left:120px;top:37px;opacity:1}
+
+/* ---------- Break screens (coffee, lunch): full-screen block field ---------- */
+#brk{position:absolute;inset:0;display:none}
+body.brk #brk{display:block}
+body.brk #content,body.brk #pixels,body.brk #pxcanvas,body.brk #brkWs{display:none}
+body.brk #footer{display:flex;justify-content:center;align-items:center;gap:120px;height:62px}
+body.brk #footer > *{position:static;width:auto}
+#brkcanvas{position:absolute;left:0;top:0;width:1920px;height:1080px;display:none}
+#brkTitle{position:absolute;left:0;right:0;top:540px;transform:translateY(-50%);text-align:center;font-family:"Archivo",sans-serif;font-weight:700;font-size:92px;line-height:1.05;letter-spacing:-.01em;color:var(--lime)}
+#brkTitle.brk-s{font-size:48px;line-height:1.2}
+#brkDesc{position:absolute;left:0;right:0;top:620px;text-align:center;font-family:"Inter",sans-serif;font-weight:400;font-size:40px;color:#fff}
+#brkWs{position:absolute;left:1567px;top:962px;font-family:"Inter",sans-serif;font-size:27px;line-height:1.04;color:#fff}
+#kvimgs{position:absolute;inset:0;z-index:0}
+#kvimgs img{position:absolute;left:0;top:0;width:1920px;height:1080px;opacity:0;display:block}
+#kvoverlay{position:absolute;left:0;top:0;width:1920px;height:1080px;background:var(--navy);opacity:.3}
+#kvtext{position:absolute;left:262px;top:160px;width:1152px;display:flex;flex-direction:column;gap:20px}
+#kvdate{font-family:"Inter",sans-serif;font-weight:500;font-size:24px;color:#fff}
+#kvtitle h1{font-family:"Archivo",sans-serif;font-weight:700;font-size:94px;line-height:1.02;letter-spacing:0;color:#fff}
+
+/* ---------- Footer: logo · workshop · day (always visible) ---------- */
+#footer{position:absolute;left:0;right:0;top:925px;height:90px}
+#footer > *{position:absolute;top:0}
+#logo{left:232px;top:5px;width:285px;height:53px;display:flex;align-items:center;gap:14px;opacity:.5}
+.logo-text{font-family:"Inter",sans-serif;font-size:26px;color:var(--ink);white-space:nowrap}
+.logo-text b{font-weight:800}
+.logo-text span{font-weight:500;opacity:.8}
+#dy{left:741px;width:893px;font-size:26px;line-height:1.2;color:var(--muted)}
+
+/* ---------- Controls (fade away when idle) ---------- */
+#bar{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:20;
+  display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:center;align-items:center;
+  padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--panel);
+  max-width:calc(100vw - 24px);width:max-content;transition:opacity .35s}
+body.idle #bar{opacity:0;pointer-events:none}
+.grp{display:flex;gap:4px}
+.grp+.grp{padding-left:14px;border-left:1px solid var(--line)}
+button{font:500 14px "Inter",sans-serif;color:var(--ink);background:transparent;border:1px solid var(--line);
+  border-radius:8px;padding:8px 12px;cursor:pointer}
+button:hover{border-color:var(--ink)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--lime);outline-offset:2px}
+button[aria-pressed="true"]{background:var(--lime);border-color:var(--lime);color:var(--navy-deep)}
+button.live[aria-pressed="true"]::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--navy-deep);margin-right:8px}
+
+select{font:500 14px "Inter",sans-serif;color:var(--ink);background:var(--navy-deep);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:300px;max-width:100%;cursor:pointer;text-overflow:ellipsis}
+select:hover{border-color:var(--ink)}
+select:focus-visible{outline:2px solid var(--lime);outline-offset:2px}
+
+/* ---------- Editor ---------- */
+#editor{position:fixed;inset:0;z-index:30;background:rgba(10,12,40,.75);display:none;align-items:center;justify-content:center;padding:16px}
+#editor.open{display:flex}
+#editor form,#editor .card{width:min(560px,100%);max-height:100%;overflow:auto;background:var(--navy-deep);border:1px solid var(--line);border-radius:14px;padding:22px;display:grid;gap:14px}
+#editor h2{font:700 20px "Archivo",sans-serif}
+#editor label{display:grid;gap:6px;font-size:14px;color:var(--muted)}
+#editor input,#editor textarea{font:400 16px "Inter",sans-serif;color:var(--ink);background:var(--navy);border:1px solid var(--line);border-radius:8px;padding:10px 12px;width:100%}
+#editor textarea{min-height:90px;resize:vertical}
+#editor .row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+#editor p{font-size:14px;color:var(--muted);line-height:1.5}
+#editor select{width:100%}
+#editor.exporting{background:var(--navy-deep)}
+.track{height:10px;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.fill{height:100%;width:0;background:var(--lime)}
+button.primary{background:var(--lime);border-color:var(--lime);color:var(--navy-deep);font-weight:500}
+
+@media (prefers-reduced-motion:reduce){#content.in{animation:none}#bar{transition:none}}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <svg id="pixels" viewBox="0 0 1456 819" preserveAspectRatio="none" aria-hidden="true">
+    <rect x="975" y="0" width="70" height="137"/>
+    <rect x="1182" y="0" width="68" height="68"/>
+    <rect x="1113" y="68" width="68" height="69"/>
+    <rect x="1320" y="0" width="136" height="274"/>
+    <rect x="1045" y="206" width="136" height="69"/>
+    <rect x="1250" y="274" width="137" height="69"/>
+    <rect x="1113" y="343" width="137" height="137"/>
+    <rect x="1387" y="412" width="69" height="137"/>
+    <rect x="1320" y="481" width="67" height="69"/>
+    <rect x="1250" y="549" width="69" height="69"/>
+    <rect x="1182" y="687" width="68" height="68"/>
+    <rect x="1320" y="687" width="136" height="132"/>
+  </svg>
+
+  <div id="kvimgs"></div>
+  <div id="kvoverlay"></div>
+
+  <canvas id="pxcanvas" width="1920" height="1080" aria-hidden="true"></canvas>
+
+  <section id="kv" aria-label="Key visual">
+   <div id="kvtext">
+    <div id="kvdate">Asiacrypt 2026 affiliated workshop</div>
+    <div id="kvtitle"><h1>1st Workshop on Privacy‑Preserving Technologies Workshop</h1></div>
+   </div>
+  </section>
+
+  <section id="brk" aria-label="Break">
+    <canvas id="brkcanvas" width="1920" height="1080"></canvas>
+    <h1 id="brkTitle"></h1>
+    <p id="brkDesc"></p>
+    <div id="brkWs">WPPT 2026<br>Workshop</div>
+  </section>
+
+  <main id="content" aria-live="polite"></main>
+
+  <footer id="footer">
+    <div id="logo" aria-label="WPPT 2026">
+      <svg width="40" height="40" viewBox="0 0 56 56" aria-hidden="true" focusable="false">
+        <circle cx="21" cy="21" r="17" fill="#ff5c1f" fill-opacity="0.82"></circle>
+        <circle cx="36" cy="35" r="18" fill="#fcbe41" fill-opacity="0.82"></circle>
+      </svg>
+      <span class="logo-text"><b>WPPT</b> <span>2026</span></span>
+    </div>
+    <div id="dy">Asiacrypt 2026 affiliated workshop</div>
+  </footer>
+</div>
+
+
+<div id="bar" role="toolbar" aria-label="Screen controls">
+  <div class="grp"><select id="jump" aria-label="Jump to session" title="Jump to session"></select></div>
+  <div class="grp">
+    <button id="prev" aria-label="Previous session">‹</button>
+    <button id="live" class="live" aria-pressed="true" title="Follow the clock (L)">Live</button>
+    <button id="next" aria-label="Next session">›</button>
+  </div>
+  <div class="grp">
+    <button id="edit" title="Edit this screen (E)">Edit</button>
+    <button id="fs" title="Fullscreen (F)">Fullscreen</button>
+  </div>
+</div>
+
+<div id="editor" role="dialog" aria-modal="true" aria-labelledby="edTitle"></div>
+
+<script src="config.js"></script>
+<script>
+/* Stage screen: the session schedule for the workshop room.
+   Design and content from github.com/onchainz3/wppt-session-screens.
+   Uses config.js for the server clock (CONFIG.now) and the remote
+   "Reload all screens" button on control.html. */
+/* =====================================================================
+   SCHEDULE DATA  (WPPT 2026 — 1st Workshop on Privacy-Preserving Technologies)
+   Monday, 7 December 2026, Hong Kong time (UTC+8). Single track, no rooms.
+   kind: session | break | keynote | talk | divider
+   ===================================================================== */
+const S = [
+  {id:'registration', start:'08:30', end:'09:00', kind:'break', title:'Registration', desc:'', speakers:[]},
+  {id:'opening',       start:'09:00', end:'09:05', kind:'session', title:'Opening remarks', desc:'', speakers:[]},
+  {id:'div-sig',       kind:'divider', title:'Signatures & credentials'},
+  {id:'k1',  start:'09:05', end:'09:30', kind:'keynote', tag:'Keynote 1', title:'Threshold Signatures for Decentralized Systems: Efficiency, Privacy, and Lessons', speakers:['Haiyang Xue, Singapore Management University']},
+  {id:'t1',  start:'09:30', end:'09:45', kind:'talk', title:'(Issuer-Hiding) Blind Signatures from VOLE-in-the-Head', speakers:['Marvin Beckmann, Technical University of Denmark']},
+  {id:'t2',  start:'09:45', end:'10:00', kind:'talk', title:'k-Anonymous Group Signatures', speakers:['Andrey Bozhko, University of Luxembourg']},
+  {id:'t3',  start:'10:00', end:'10:15', kind:'talk', title:'Keyed-Verification Anonymous Credentials with Highly Efficient Partial Disclosure', speakers:['Omid Mirzamohammadi, KU Leuven']},
+  {id:'t4',  start:'10:15', end:'10:30', kind:'talk', title:'Formally Verifying an Anonymous Credential Protocol: Lessons from OpenAC', speakers:['Alex Kuzmin and Vikas Rushi, Ethereum Foundation']},
+  {id:'cb1', start:'10:30', end:'11:00', kind:'break', title:'Coffee break', desc:'', speakers:[]},
+  {id:'div-pir',       kind:'divider', title:'PIR & MPC'},
+  {id:'k2',  start:'11:00', end:'11:25', kind:'keynote', tag:'Keynote 2', title:'PIR: Foundations, Constructions, and Extensions', speakers:['Mingli Wu, The Hong Kong Polytechnic University']},
+  {id:'t5',  start:'11:25', end:'11:40', kind:'talk', title:'Fuzzy Private Information Retrieval via Improved Function Secret Sharing', speakers:['Jaspal Singh, Mohamed bin Zayed University of Artificial Intelligence']},
+  {id:'t6',  start:'11:40', end:'11:55', kind:'talk', title:'Beyond the Output: Inference Attacks on Private Set Union and Multi-Key Private Matching', speakers:['Francesca Falzon, Lucerne University of Applied Sciences and Arts']},
+  {id:'t7',  start:'11:55', end:'12:10', kind:'talk', title:'SPRINT: Scalable Secure & Differentially Private Inference for Transformers', speakers:['Benjamin Weggenmann, Technical University of Applied Sciences Würzburg-Schweinfurt']},
+  {id:'t8',  start:'12:10', end:'12:25', kind:'talk', title:'StridePIR: Low-Latency Hintless PIR for Mid-Sized Records with Small Communication and Low Server Cost', speakers:['Dohyuk Kim, Hanyang University and waLLLnut']},
+  {id:'lunch', start:'12:30', end:'14:00', kind:'break', title:'Lunch at Ju Yin House', desc:'', speakers:[]},
+  {id:'div-fhe',       kind:'divider', title:'FHE'},
+  {id:'k3',  start:'14:00', end:'14:25', kind:'keynote', tag:'Keynote 3', title:'A Survey on Virtual Machines over Fully Homomorphic Encryption', speakers:['Song Bian, Beihang University']},
+  {id:'t9',  start:'14:25', end:'14:40', kind:'talk', title:'Outsourced Computation without Trust Assumptions: Verifiable FHE and Blind Proofs', speakers:['Jannik Spiessens, KU Leuven']},
+  {id:'t10', start:'14:40', end:'14:55', kind:'talk', title:'FHE for SIMD Arithmetic Logic Units over Large Integers with O(1) Bootstrapping', speakers:['Hongren Zheng, Tsinghua University']},
+  {id:'t11', start:'14:55', end:'15:10', kind:'talk', title:'PV-TBFV: Publicly Verifiable Threshold BFV for On-Chain Encrypted Computation', speakers:['Younes Talibi Alaoui, The Interfold']},
+  {id:'t12', start:'15:10', end:'15:25', kind:'talk', title:'Every Browser a Coprocessor: Client-Side FHE16 and Decentralized Re-Execution for Verifiable Confidential Computation on Ethereum', speakers:['Seunghwan Lee, Hanyang University and waLLLnut']},
+  {id:'cb2', start:'15:30', end:'16:00', kind:'break', title:'Coffee break', desc:'', speakers:[]},
+  {id:'div-bc',        kind:'divider', title:'Blockchain privacy'},
+  {id:'k4',  start:'16:00', end:'16:25', kind:'keynote', tag:'Keynote 4', title:'Programmable Privacy on Ethereum', speakers:['Nam Ngo, Ethereum Foundation']},
+  {id:'t13', start:'16:25', end:'16:40', kind:'talk', title:'Just One Bit Vector: Complement-Free Ring Confidential Transactions with Transparent Setup', speakers:['Hao Gao, Beihang University']},
+  {id:'t14', start:'16:40', end:'16:55', kind:'talk', title:'Threshold Encryption with Internally Motivated Corruption', speakers:['Jan Bormet, TU Darmstadt']},
+  {id:'t15', start:'16:55', end:'17:10', kind:'talk', title:'Sealed to the End: Deploying a Confidential Vickrey Auction with FHE on a Public Blockchain', speakers:['Thiago Rocha Duarte, Federal University of Science and Innovation of Rio de Janeiro']},
+  {id:'t16', start:'17:10', end:'17:25', kind:'talk', tag:'Recorded talk', title:'What the Realized Order Reveals: A Leakage Bound for Randomness-Fair, Censorship-Evident Transaction Ordering', speakers:['Aria Naraghi, Independent researcher']},
+  {id:'closing', start:'17:25', end:'17:30', kind:'session', title:'Closing remarks', desc:'', speakers:[]},
+  {id:'social', start:'17:30', end:'18:00', kind:'break', title:'Optional: move to the Sheraton for Asiacrypt registration and the welcome cocktail party', desc:'', speakers:[]},
+];
+
+/* =====================================================================
+   STATE + HELPERS
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const OV_KEY = 'wppt-screens-overrides-v1';
+let overrides = {};
+try { overrides = JSON.parse(localStorage.getItem(OV_KEY) || '{}') || {}; } catch(e){ overrides = {}; }
+function saveOverrides(){ try { localStorage.setItem(OV_KEY, JSON.stringify(overrides)); } catch(e){} }
+
+const at = hhmm => new Date(`2026-12-07T${hhmm}:00+08:00`); // Hong Kong time (HKT)
+const apply = s => ({...s, ...(overrides[s.id] || {})});
+
+function timeline(){
+  const list = S.map(apply);
+  list.unshift({id:null, kv:true, start:'00:00', end:'08:30', title:'Key visual', desc:'', speakers:[]});
+  return list;
+}
+
+function liveState(){
+  const now = CONFIG.now();
+  const tl = timeline();
+  let idx = 0;
+  tl.forEach((s, i) => { if (!s.kv && s.start && at(s.start).getTime() <= now) idx = i; });
+  return {idx};
+}
+
+const state = { idx:0, auto:true };
+
+/* ---------- key visual: single static hero photo behind a flat dark overlay (no motion) ---------- */
+const KV_IMG="assets/stage-kv.jpg";
+
+const KV_COLS = 44, KV_ROWS = 25, KV_C = 44;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const kv = {img:null, on:false};
+
+const BRK_INIT="100000010100000000000001010000000000000101000000000100010100010000001000100010001000001000100000010000000000000100000100100100000000010101010000";
+const BRK_EV=[1,1,2,39,2,68,2,85,2,127,2,143,3,113,4,44,6,139,7,67,8,23,9,43,9,55,9,123,12,107,16,45,16,57,16,80,16,86,16,96,17,9,18,137,18,140,21,97,23,135,25,84,26,42,27,7,29,2,32,73,32,124,32,143,33,85,33,129,35,90,35,91,36,44,37,43,41,22,41,38,42,107,44,67,44,127,45,120,46,6,46,96,46,112,46,136,47,66,48,83,51,0,52,84,53,138,54,28,55,111,55,113,59,42,60,29,61,101,61,140,62,108,62,124,64,27,66,141,68,117,69,16,70,22,74,52,75,6,75,82,77,112,77,136,78,38,78,83,78,125,79,128,80,100,83,8,84,26,86,28,88,89,88,137,89,41,90,53,90,108,91,2,91,91,91,129,92,27,92,61,94,99,95,5,97,21,99,92,100,72,100,88,101,12,102,37,102,101,103,109,106,13,106,117,109,100,110,125,110,128,111,133,112,11,112,98,115,26,117,142,119,81,119,82,120,126,121,51,122,99,123,89,124,5,126,21,126,139,129,88,129,104,131,55,131,109,132,92,133,10,133,60,133,116,134,86,135,12,136,137,137,93,140,11,140,37,140,110,140,115,141,97,142,4,143,73,145,53,147,1,147,57,147,98,148,0,148,20,149,25,149,87,152,114,158,9,158,36,158,140,160,90,161,126,162,10,162,104,163,116,163,120,164,117,164,127,166,93,168,115,168,133,170,94,170,110,171,4,171,55,173,45,173,113,175,77,176,20,177,111,178,67,178,87,179,76,182,57,184,114,184,132,185,3,186,131,187,66,188,16,190,0,190,86,192,36,192,130,192,138,193,19,194,9,198,90,198,94,200,81,200,95,203,38,204,78,207,35,207,77,209,129,210,82,210,91,211,42,212,52,213,61,214,131,214,132,216,3,216,41,217,111,218,51,220,54,220,72,220,133,221,19,222,60,223,101,224,130,225,29,226,2,226,102,226,142,228,42,229,8,230,79,232,78,232,95,234,18,236,86,237,35,242,62,243,121,245,139,248,13,249,34,250,45,252,41,252,54,252,61,255,137,255,141,258,102,259,56,259,72,259,79,260,2,260,51,261,105,262,18,262,74,264,37,264,63,266,126,267,1,267,25,268,50,270,73,271,62,272,89,272,92,273,17,273,75,274,121,277,34,277,103,280,97,281,46,282,53,282,67,282,117,283,55,284,66,287,33,288,141,289,40,289,56,289,105,290,74,291,70,292,63,293,29,297,45,297,76,298,12,298,140,299,47,299,118,300,50,302,98,303,38,304,17,304,75,304,127,306,49,306,103,308,73,310,0,311,1,311,16,311,46,312,138,315,33,316,53,317,40,318,24,319,70,319,92,319,122,320,9,321,25,322,30,322,32,327,47,327,66,328,36,328,111,329,118,330,65,332,52,332,90,335,49,336,31,336,69,337,57,338,133,339,120,340,48,341,104,342,29,343,13,345,59,345,113,346,119,347,122,348,8,348,24,348,141,350,16,350,60,350,106,352,30,353,32,354,81,354,138,355,142,356,58,356,76,356,82,356,134,357,101,359,89,360,65,362,14,362,64,363,31,364,69,367,139,368,12,368,48,372,15,372,39,372,68,373,25,373,37,373,59,374,52,374,61,374,119,379,97,380,23,380,51,380,106,381,72,381,123,382,98,385,60,386,13,386,58,386,134,388,36,388,80,389,81,389,104,390,64,390,91,391,120,392,8,392,14,392,76,393,41,393,129,393,142,395,7,395,135,399,126];
+/* ---------- break / section-divider screens: the 40 s block loop ---------- */
+const BRK = {st:null, ctx:null, idx:0, lastF:0, t0:0, tick:null, on:false};
+function brkDraw(i){
+  const x = (i % 16) * 120, y = ((i / 16) | 0) * 120;
+  BRK.ctx.clearRect(x, y, 120, 120);
+  if (BRK.st[i]) { BRK.ctx.fillStyle = '#22402F'; BRK.ctx.fillRect(x, y, 120, 120); }
+}
+function brkReset(){ BRK.st = [...BRK_INIT].map(Number); BRK.idx = 0; for (let i = 0; i < 144; i++) brkDraw(i); }
+function brkFrame(){
+  const f = Math.floor(((performance.now() - BRK.t0) % 40000) / 100);
+  if (f < BRK.lastF) brkReset();            // wrap-around: back to the first frame
+  BRK.lastF = f;
+  while (BRK.idx < BRK_EV.length && BRK_EV[BRK.idx] <= f) { const c = BRK_EV[BRK.idx + 1]; BRK.st[c] ^= 1; brkDraw(c); BRK.idx += 2; }
+}
+function brkStart(){
+  if (BRK.on) return; BRK.on = true;
+  BRK.ctx = document.getElementById('brkcanvas').getContext('2d');
+  BRK.t0 = performance.now(); BRK.lastF = 0; brkReset();
+  if (!reduceMotion) BRK.tick = setInterval(brkFrame, 40);
+}
+function brkStop(){ if (!BRK.on) return; BRK.on = false; clearInterval(BRK.tick); }
+
+/* ---------- session slides: subtle pixel field on the same 44px grid as the key visual ---------- */
+const px = {ctx:null, P:null, t:null, a:null, cand:[], raf:null, tick:null, last:0, on:false, dirty:new Set()};
+function pxInit(){
+  px.ctx = $('pxcanvas').getContext('2d');
+  const N = KV_ROWS * KV_COLS, base = new Array(N).fill(0), k = 1920 / 1456;
+  document.querySelectorAll('#pixels rect').forEach(r => {
+    const x = +r.getAttribute('x') * k, y = +r.getAttribute('y') * k, w = +r.getAttribute('width') * k, h = +r.getAttribute('height') * k;
+    for (let row = 0; row < KV_ROWS; row++) for (let c = 0; c < KV_COLS; c++) {
+      const cx = c * KV_C + KV_C / 2, cy = row * KV_C + KV_C / 2;
+      if (cx >= x && cx < x + w && cy >= y && cy < y + h) base[row * KV_COLS + c] = 1;
+    }
+  });
+  // probability a cell is on: solid inside the original blocks, wobbling along their edges
+  px.P = base.map((_, i) => {
+    const row = Math.floor(i / KV_COLS), c = i % KV_COLS; let s = 0, n = 0;
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+      const rr = row + dr, cc = c + dc;
+      if (rr < 0 || rr >= KV_ROWS || cc < 0 || cc >= KV_COLS) continue;
+      const wgt = (dr || dc) ? 1 : 2; s += base[rr * KV_COLS + cc] * wgt; n += wgt;
+    }
+    const avg = s / n; return Math.max(c >= 28 ? .08 : 0, Math.min(1, (avg - .5) * 1.1 + .5));
+  });
+  px.cand = []; px.P.forEach((p, i) => { if (p > .03 && p < .97) px.cand.push(i); });
+  px.t = base.slice(); px.a = base.slice(); px.base = base.slice();
+  for (let i = 0; i < N; i++) pxDraw(i);
+}
+function pxDraw(i){
+  const row = Math.floor(i / KV_COLS), c = i % KV_COLS, x = c * KV_C, y = row * KV_C, g = px.ctx;
+  g.clearRect(x, y, KV_C, KV_C);
+  if (px.a[i] > 0) { g.globalAlpha = px.a[i]; g.fillStyle = '#1C352B'; g.fillRect(x, y, KV_C, KV_C); g.globalAlpha = 1; }
+}
+function pxFrame(ts){
+  if (!px.on) return;
+  const d = (ts - px.last) / 220; px.last = ts;
+  px.dirty.forEach(i => {
+    const tg = px.t[i], a = px.a[i];
+    px.a[i] = tg > a ? Math.min(tg, a + d) : Math.max(tg, a - d);
+    pxDraw(i);
+    if (px.a[i] === tg) px.dirty.delete(i);
+  });
+  px.raf = requestAnimationFrame(pxFrame);
+}
+function pxStep(){
+  const n = 2 + Math.floor(Math.random() * 5) + (Math.random() < .08 ? 8 : 0);   // a few cells each time, now and then a burst
+  for (let k = 0; k < n; k++) {
+    const i = px.cand[Math.floor(Math.random() * px.cand.length)];
+    const v = Math.random() < px.P[i] ? 1 : 0;
+    if (v !== px.t[i]) { px.t[i] = v; px.dirty.add(i); }
+  }
+}
+function pxStart(){
+  if (px.on) return; px.on = true; px.last = performance.now();
+  px.raf = requestAnimationFrame(pxFrame);
+  if (!reduceMotion) pxLoop();
+}
+function pxLoop(){ px.tick = setTimeout(() => { pxStep(); pxLoop(); }, 40 + Math.random() * 110); }   // irregular rhythm
+function pxStop(){ if (!px.on) return; px.on = false; cancelAnimationFrame(px.raf); clearTimeout(px.tick); }
+
+/* ---------- key visual text (editable) + boot ---------- */
+const KV_DEFAULT = { date:'Asiacrypt 2026 affiliated workshop', title:'1st Workshop on Privacy‑Preserving Technologies Workshop' };
+function kvText(){ return {...KV_DEFAULT, ...(overrides.kv || {})}; }
+function kvApplyText(){
+  const t = kvText();
+  $('kvdate').textContent = t.date;
+  const h = document.querySelector('#kvtitle h1'); h.textContent = '';
+  t.title.split('\n').slice(0, 2).forEach((line, i) => { if (i) h.append(document.createElement('br')); h.append(document.createTextNode(line)); });
+}
+function openKvEditor(ed){
+  const cur = kvText();
+  const f = el('form');
+  const h = el('h2', null, 'Edit key visual'); h.id = 'edTitle'; f.append(h);
+  const mk = (label, node) => { const l = el('label', null, label); l.append(node); f.append(l); return node; };
+  const d = el('input'); d.value = cur.date; mk('Eyebrow line', d);
+  const t = el('textarea'); t.value = cur.title; t.style.minHeight = '70px'; mk('Title (up to 2 lines, one per line)', t);
+  f.append(el('p', null, 'Changes are saved in this browser only.'));
+  const row = el('div','row');
+  const reset = el('button', null, 'Reset to default'); reset.type = 'button';
+  reset.onclick = () => { delete overrides.kv; saveOverrides(); closeEditor(); kvApplyText(); };
+  const cancel = el('button', null, 'Cancel'); cancel.type = 'button'; cancel.onclick = closeEditor;
+  const save = el('button', 'primary', 'Save'); save.type = 'submit';
+  row.append(reset, cancel, save); f.append(row);
+  f.onsubmit = e => {
+    e.preventDefault();
+    overrides.kv = { date: d.value.trim() || KV_DEFAULT.date,
+                     title: t.value.trim() || KV_DEFAULT.title };
+    saveOverrides(); closeEditor(); kvApplyText();
+  };
+  ed.append(f);
+  setTimeout(() => d.focus(), 0);
+}
+function kvInit(){
+  kvApplyText();
+  const box = document.getElementById('kvimgs');
+  const im = new Image(); im.alt = '';
+  im.onload = () => { im.style.transition = 'opacity .6s ease'; im.style.opacity = 1; };
+  im.src = KV_IMG;
+  box.append(im);
+  kv.img = im;
+}
+function kvStart(){ kv.on = true; }
+function kvStop(){ kv.on = false; }
+
+/* =====================================================================
+   RENDER
+   ===================================================================== */
+function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+function render(animate){
+  const tl = timeline();
+  state.idx = Math.max(0, Math.min(state.idx, tl.length - 1));
+  const s = tl[state.idx];
+  document.body.classList.toggle('kv', !!s.kv);
+  const isCard = !s.kv && (s.kind === 'break' || s.kind === 'divider');
+  document.body.classList.toggle('brk', isCard);
+  if (s.kv) { brkStop(); pxStop(); kvStart(); $('content').textContent = ''; syncControls(); return; }
+  kvStop();
+  if (isCard) {
+    pxStop(); brkStart();
+    $('brkTitle').textContent = s.title;
+    $('brkTitle').className = s.title.length > 60 ? 'brk-s' : '';
+    $('brkDesc').textContent = s.kind === 'divider' ? '' : (s.desc || '');
+    $('content').textContent = '';
+    syncControls(); return;
+  }
+  brkStop(); pxStart();
+  const c = $('content');
+  c.textContent = '';
+
+  const meta = el('div','meta');
+  meta.append(el('b', null, `${s.start}–${s.end}`));
+  if (s.tag) meta.append(el('span', null, s.tag));
+  c.append(meta);
+
+  const tb = el('div','block');
+  const len = s.title.length;
+  tb.append(el('h1','title ' + (len > 85 ? 'xl' : len > 55 ? 'l' : len > 32 ? 'm' : ''), s.title));
+  c.append(tb);
+
+  if (s.desc) {
+    const db = el('div','block');
+    db.append(el('p','desc ' + (s.desc.length > 110 ? 's' : ''), s.desc));
+    c.append(db);
+  }
+  if (s.speakers && s.speakers.length) {
+    const sp = el('div','speakers');
+    s.speakers.forEach(n => sp.append(el('span', null, n)));
+    c.append(sp);
+  }
+
+  if (animate) { c.classList.remove('in'); void c.offsetWidth; c.classList.add('in'); }
+  syncControls();
+}
+
+function syncControls(){
+  $('live').setAttribute('aria-pressed', String(state.auto));
+  const jump = $('jump'), tl = timeline();
+  jump.textContent = '';
+  tl.forEach((s, i) => {
+    const o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = s.kv ? 'Key visual' : s.kind === 'divider' ? '— ' + s.title + ' —' : s.start + '  ' + s.title;
+    jump.append(o);
+  });
+  jump.value = String(state.idx);
+}
+
+function tick(){
+  if (!state.auto) return;
+  const ls = liveState();
+  if (ls.idx !== state.idx) { state.idx = ls.idx; render(true); }
+}
+
+/* =====================================================================
+   CONTROLS
+   ===================================================================== */
+function step(n){ state.auto = false; const len = timeline().length; state.idx = Math.max(0, Math.min(len - 1, state.idx + n)); render(true); }
+$('jump').onchange = () => { state.auto = false; state.idx = +$('jump').value; render(true); $('jump').blur(); };
+$('prev').onclick = () => step(-1);
+$('next').onclick = () => step(1);
+function goLive(){ state.auto = true; const ls = liveState(); state.idx = ls.idx; render(true); }
+$('live').onclick = () => { state.auto ? (state.auto = false, syncControls()) : goLive(); };
+
+function toggleFS(){
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen();
+  } catch(e){}
+}
+$('fs').onclick = toggleFS;
+
+/* ---------- editor ---------- */
+function openEditor(){
+  const s = timeline()[state.idx];
+  const ed = $('editor'); ed.textContent = '';
+  if (s.kv) {
+    openKvEditor(ed);
+  } else {
+    const f = el('form'); f.id = 'edForm';
+    const h = el('h2', null, 'Edit this screen'); h.id = 'edTitle'; f.append(h);
+    const mk = (label, node) => { const l = el('label', null, label); l.append(node); f.append(l); return node; };
+    const t = el('input'); t.value = s.title;               mk('Title', t);
+    const d = el('textarea'); d.value = s.desc || '';       mk('Description (optional)', d);
+    const p = el('input'); p.value = (s.speakers || []).join(', '); mk('Speakers, separated by commas', p);
+    f.append(el('p', null, 'Changes are saved in this browser only. Do this on the machine that drives the display.'));
+    const row = el('div','row');
+    const reset = el('button', null, 'Reset to schedule'); reset.type = 'button';
+    reset.onclick = () => { delete overrides[s.id]; saveOverrides(); closeEditor(); render(true); };
+    const cancel = el('button', null, 'Cancel'); cancel.type = 'button'; cancel.onclick = closeEditor;
+    const save = el('button', 'primary', 'Save'); save.type = 'submit';
+    row.append(reset, cancel, save); f.append(row);
+    f.onsubmit = e => {
+      e.preventDefault();
+      overrides[s.id] = { title: t.value.trim() || s.title, desc: d.value.trim(),
+                          speakers: p.value.split(',').map(x => x.trim()).filter(Boolean) };
+      saveOverrides(); closeEditor(); render(true);
+    };
+    ed.append(f);
+    setTimeout(() => t.focus(), 0);
+  }
+  ed.classList.add('open');
+}
+function closeEditor(){ if (typeof EXP !== 'undefined' && EXP.busy) return; $('editor').classList.remove('open'); }
+$('edit').onclick = openEditor;
+$('editor').addEventListener('mousedown', e => { if (e.target === $('editor')) closeEditor(); });
+
+/* ---------- keyboard ---------- */
+document.addEventListener('keydown', e => {
+  if ($('editor').classList.contains('open')) { if (e.key === 'Escape') closeEditor(); return; }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === 'arrowright' || k === 'pagedown') step(1);
+  else if (k === 'arrowleft' || k === 'pageup') step(-1);
+  else if (k === 'f') toggleFS();
+  else if (k === 'l') goLive();
+  else if (k === 'e') openEditor();
+});
+
+/* ---------- hide controls when idle ---------- */
+let idleT;
+function wake(){ document.body.classList.remove('idle'); clearTimeout(idleT); idleT = setTimeout(() => { if (!$('editor').classList.contains('open')) document.body.classList.add('idle'); }, 3500); }
+['mousemove','mousedown','touchstart','keydown'].forEach(ev => document.addEventListener(ev, wake, {passive:true}));
+
+/* ---------- scale 1920×1080 stage to the window ---------- */
+function fit(){
+  const k = Math.min(innerWidth / 1920, innerHeight / 1080);
+  $('stage').style.transform = `translate(-50%,-50%) scale(${k})`;
+}
+addEventListener('resize', fit);
+
+/* ---------- link to a screen: #5 jumps to index 5 and stops following the clock ---------- */
+function readHash(){
+  const m = /^#?(\d+)$/.exec(location.hash || '');
+  if (!m) return false;
+  state.auto = false; state.idx = +m[1];
+  return true;
+}
+addEventListener('hashchange', () => { if (readHash()) render(true); });
+
+/* =====================================================================
+   VIDEO EXPORT: every slide as a seamless 1920×1080 loop (MP4, H.264)
+   Each frame is drawn on a canvas at an exact time, so loops are exact.
+   ===================================================================== */
+/* ---- minimal MP4 muxer: one H.264 (avcC) video track, constant frame rate, moov before mdat ---- */
+function mp4Mux(o){
+  const u32 = n => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const u16 = n => [(n >> 8) & 255, n & 255];
+  const str = s => Array.from(s).map(c => c.charCodeAt(0));
+  const cat = (...a) => {
+    const parts = a.map(x => x instanceof Uint8Array ? x : Uint8Array.from(x));
+    let n = 0; parts.forEach(x => n += x.length);
+    const out = new Uint8Array(n); let p = 0; parts.forEach(x => { out.set(x, p); p += x.length; });
+    return out;
+  };
+  const box  = (type, ...c) => { const body = cat(...c); return cat(u32(body.length + 8), str(type), body); };
+  const fbox = (type, ver, flags, ...c) => box(type, [ver, (flags >> 16) & 255, (flags >> 8) & 255, flags & 255], ...c);
+  const N = o.samples.length, TS = Math.round(o.fps * 1000), DUR = 1000;
+  const trackDur = N * DUR, movieDur = Math.round(N / o.fps * 1000);
+  const matrix = cat(u32(0x00010000), u32(0), u32(0), u32(0), u32(0x00010000), u32(0), u32(0), u32(0), u32(0x40000000));
+  const keys = []; o.samples.forEach((s, i) => { if (s.key) keys.push(i + 1); });
+  const stsd = fbox('stsd', 0, 0, u32(1), box('avc1',
+      [0,0,0,0,0,0], u16(1), u16(0), u16(0), u32(0), u32(0), u32(0), u16(o.width), u16(o.height),
+      u32(0x00480000), u32(0x00480000), u32(0), u16(1), new Array(32).fill(0), u16(0x18), u16(0xFFFF),
+      box('avcC', o.desc)));
+  const moov = offset => box('moov',
+    fbox('mvhd', 0, 0, u32(0), u32(0), u32(1000), u32(movieDur), u32(0x00010000), u16(0x0100), u16(0), u32(0), u32(0),
+         matrix, new Array(24).fill(0), u32(2)),
+    box('trak',
+      fbox('tkhd', 0, 3, u32(0), u32(0), u32(1), u32(0), u32(movieDur), u32(0), u32(0), u16(0), u16(0), u16(0), u16(0),
+           matrix, u32(o.width << 16), u32(o.height << 16)),
+      box('mdia',
+        fbox('mdhd', 0, 0, u32(0), u32(0), u32(TS), u32(trackDur), u16(0x55c4), u16(0)),
+        fbox('hdlr', 0, 0, u32(0), str('vide'), u32(0), u32(0), u32(0), str('VideoHandler'), [0]),
+        box('minf',
+          fbox('vmhd', 0, 1, u16(0), u16(0), u16(0), u16(0)),
+          box('dinf', fbox('dref', 0, 0, u32(1), fbox('url ', 0, 1))),
+          box('stbl', stsd,
+            fbox('stts', 0, 0, u32(1), u32(N), u32(DUR)),
+            fbox('stss', 0, 0, u32(keys.length), ...keys.map(u32)),
+            fbox('stsc', 0, 0, u32(1), u32(1), u32(N), u32(1)),
+            fbox('stsz', 0, 0, u32(0), u32(N), ...o.samples.map(s => u32(s.data.length))),
+            fbox('stco', 0, 0, u32(1), u32(offset)))))));
+  const ftyp = box('ftyp', str('isom'), u32(512), str('isom'), str('iso2'), str('avc1'), str('mp41'));
+  let total = 0; o.samples.forEach(s => total += s.data.length);
+  const moovSize = moov(0).length;
+  const moovBox = moov(ftyp.length + moovSize + 8);
+  const mdatHead = cat(u32(total + 8), str('mdat'));
+  return new Blob([ftyp, moovBox, mdatHead, ...o.samples.map(s => s.data)], {type: 'video/mp4'});
+}
+
+
+const EXP = { busy:false, cancel:false, tex:null };
+const mulberry = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const hashStr = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+const tick0 = () => new Promise(r => setTimeout(r, 0));
+
+function cssEase(x){   // cubic-bezier(.25,.1,.25,1), the CSS "ease" curve used by the screen
+  if (x <= 0) return 0; if (x >= 1) return 1;
+  const bez = (a, b, t) => 3 * a * (1 - t) * (1 - t) * t + 3 * b * (1 - t) * t * t + t * t * t;
+  let lo = 0, hi = 1, t = x;
+  for (let i = 0; i < 24; i++) { t = (lo + hi) / 2; if (bez(.25, .25, t) < x) lo = t; else hi = t; }
+  return bez(.1, 1, t);
+}
+
+async function expTexture(){
+  return null; // grain texture removed
+}
+
+/* Read the exact positions of every piece of text, bar and logo from the slide that is on screen. */
+function expHarvest(){
+  const stage = $('stage'), sr = stage.getBoundingClientRect(), k = sr.width / 1920;
+  const X = v => (v - sr.left) / k, Y = v => (v - sr.top) / k;
+  const shown = e => e.getClientRects().length > 0;
+  const ancestorAlpha = e => { let a = 1; for (let n = e; n && n !== stage; n = n.parentElement) { const ao = parseFloat(getComputedStyle(n).opacity); if (!Number.isNaN(ao)) a *= ao; } return a; };
+  const texts = [], circles = [];
+  const rg = document.createRange(), walker = document.createTreeWalker(stage, NodeFilter.SHOW_TEXT);
+  let n;
+  while ((n = walker.nextNode())) {
+    const txt = n.nodeValue; if (!/\S/.test(txt)) continue;
+    const el = n.parentElement; if (!shown(el)) continue;
+    const cs = getComputedStyle(el), upper = cs.textTransform === 'uppercase';
+    const alpha = ancestorAlpha(el);
+    const lines = []; let cur = null;
+    for (let i = 0; i < txt.length; i++) {
+      if (/\s/.test(txt[i])) continue;
+      rg.setStart(n, i); rg.setEnd(n, i + 1);
+      const rs = rg.getClientRects(); if (!rs.length) continue;
+      const top = Y(rs[0].top);
+      if (!cur || Math.abs(top - cur.top) > 6) { cur = {top, left:X(rs[0].left), a:i, b:i}; lines.push(cur); }
+      cur.b = i;
+    }
+    lines.forEach(L => {
+      let t = txt.slice(L.a, L.b + 1); if (upper) t = t.toUpperCase();
+      texts.push({text:t, x:L.left, top:L.top, color:cs.color, alpha,
+                  font:`${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`,
+                  ls:cs.letterSpacing === 'normal' ? '0px' : cs.letterSpacing});
+    });
+  }
+  stage.querySelectorAll('#logo circle').forEach(e => {
+    if (!shown(e)) return;
+    const r = e.getBoundingClientRect(), cs = getComputedStyle(e);
+    circles.push({cx:X(r.left + r.width / 2), cy:Y(r.top + r.height / 2), rr:(r.width / 2) / k,
+                  fill:cs.fill, fillOpacity:parseFloat(cs.fillOpacity || '1'), alpha:ancestorAlpha(e)});
+  });
+  return {texts, circles};
+}
+
+function expLayer(h){
+  const c = document.createElement('canvas'); c.width = 1920; c.height = 1080;
+  const g = c.getContext('2d');
+  h.circles.forEach(ci => {
+    g.globalAlpha = ci.alpha * ci.fillOpacity; g.fillStyle = ci.fill;
+    g.beginPath(); g.arc(ci.cx, ci.cy, ci.rr, 0, Math.PI * 2); g.fill();
+  });
+  g.globalAlpha = 1;
+  g.textBaseline = 'alphabetic';
+  h.texts.forEach(t => {
+    g.font = t.font; g.fillStyle = t.color; g.globalAlpha = t.alpha; if ('letterSpacing' in g) g.letterSpacing = t.ls;
+    g.fillText(t.text, t.x, Math.round(t.top + g.measureText('Hg').fontBoundingBoxAscent));
+  });
+  g.globalAlpha = 1;
+  if ('letterSpacing' in g) g.letterSpacing = '0px';
+  return c;
+}
+
+function expTextureOn(ctx){
+  // grain texture removed: no-op
+}
+
+/* ---- scenes: draw(ctx, t) paints the slide at time t seconds; t = loop length gives the first frame again ---- */
+function sceneSession(seed, layer){
+  return {fps:30, loop:5, draw(ctx, t, o = {}){
+    ctx.fillStyle = '#12211C'; ctx.fillRect(0, 0, 1920, 1080);
+    if (!o.bare) {
+      if (kv.img) ctx.drawImage(kv.img, 0, 0, 1920, 1080);
+      ctx.fillStyle = 'rgba(18,33,28,.3)'; ctx.fillRect(0, 0, 1920, 1080);
+    }
+    ctx.drawImage(layer, 0, 0); if (!o.noTexture) expTextureOn(ctx);
+  }};
+}
+
+function sceneKV(layer){
+  return {fps:30, loop:5, draw(ctx, t, o = {}){
+    ctx.fillStyle = '#16281F'; ctx.fillRect(0, 0, 1920, 1080);
+    if (!o.bare) {
+      if (kv.img) ctx.drawImage(kv.img, 0, 0, 1920, 1080);
+      ctx.fillStyle = 'rgba(18,33,28,.55)'; ctx.fillRect(0, 0, 1920, 1080);
+    }
+    ctx.drawImage(layer, 0, 0); if (!o.noTexture) expTextureOn(ctx);
+  }};
+}
+
+function sceneBreak(layer){
+  return {fps:30, loop:5, draw(ctx, t, o = {}){
+    ctx.fillStyle = '#0E1A16'; ctx.fillRect(0, 0, 1920, 1080);
+    if (!o.bare) {
+      if (kv.img) ctx.drawImage(kv.img, 0, 0, 1920, 1080);
+      ctx.fillStyle = 'rgba(18,33,28,.3)'; ctx.fillRect(0, 0, 1920, 1080);
+    }
+    ctx.drawImage(layer, 0, 0); if (!o.noTexture) expTextureOn(ctx);
+  }};
+}
+
+function expScene(s, key){
+  const layer = expLayer(expHarvest());
+  const sc = s.kv ? sceneKV(layer) : (s.kind === 'break' || s.kind === 'divider') ? sceneBreak(layer) : sceneSession(key, layer);
+  if (window.__EXP_LOOP) sc.loop = Math.min(sc.loop, window.__EXP_LOOP);
+  return sc;
+}
+
+/* ---- encoding ---- */
+async function expEncode(scene, prog){
+  const fps = scene.fps, N = Math.round(scene.loop * fps);
+  const cv = document.createElement('canvas'); cv.width = 1920; cv.height = 1080;
+  const ctx = cv.getContext('2d', {alpha:false});
+  let cfg = null;
+  if (typeof VideoEncoder !== 'undefined' && typeof VideoFrame !== 'undefined') {
+    for (const codec of (window.__EXP_CODECS || ['avc1.64002a', 'avc1.4d002a', 'avc1.42002a'])) {
+      const c = {codec, width:1920, height:1080, bitrate:10e6, framerate:fps, latencyMode:'quality', bitrateMode:'variable'};
+      if (codec.startsWith('avc1')) c.avc = {format:'avc'};
+      try { const r = await VideoEncoder.isConfigSupported(c); if (r.supported) { cfg = c; break; } } catch(e){}
+    }
+  }
+  if (!cfg) return expRecord(scene, cv, ctx, prog);
+  const samples = []; let desc = null, fail = null;
+  const enc = new VideoEncoder({
+    output: (chunk, meta) => {
+      const d = new Uint8Array(chunk.byteLength); chunk.copyTo(d);
+      samples.push({data:d, key:chunk.type === 'key'});
+      const dc = meta && meta.decoderConfig && meta.decoderConfig.description;
+      if (dc && !desc) desc = new Uint8Array(ArrayBuffer.isView(dc) ? dc.buffer.slice(dc.byteOffset, dc.byteOffset + dc.byteLength) : dc.slice(0));
+    },
+    error: e => { fail = e; }
+  });
+  enc.configure(cfg);
+  for (let i = 0; i < N; i++) {
+    if (EXP.cancel) { try { enc.close(); } catch(e){} return null; }
+    if (fail) throw fail;
+    scene.draw(ctx, i / fps);
+    const fr = new VideoFrame(cv, {timestamp:Math.round(i * 1e6 / fps), duration:Math.round(1e6 / fps)});
+    enc.encode(fr, {keyFrame: i % 60 === 0}); fr.close();
+    while (enc.encodeQueueSize > 8) await tick0();
+    if (i % 6 === 0) { prog(i / N); await tick0(); }
+  }
+  await enc.flush(); enc.close(); if (fail) throw fail;
+  if (window.__EXP_TEST) return {test:true, frames:samples.length, keys:samples.filter(s => s.key).length, hasDesc:!!desc, codec:cfg.codec};
+  if (!desc) throw new Error('The encoder gave no H.264 configuration.');
+  return {blob:mp4Mux({width:1920, height:1080, fps, desc, samples}), ext:'mp4'};
+}
+
+/* fallback for browsers without an H.264 encoder: records in real time (WebM, or MP4 where supported) */
+async function expRecord(scene, cv, ctx, prog){
+  if (typeof MediaRecorder === 'undefined') throw new Error('This browser cannot record video. Use a recent Chrome, Edge or Safari.');
+  const mime = ['video/mp4;codecs=avc1', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m));
+  const stream = cv.captureStream(scene.fps), chunks = [];
+  const rec = new MediaRecorder(stream, {mimeType:mime, videoBitsPerSecond:10e6});
+  rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  const stopped = new Promise(r => rec.onstop = r);
+  scene.draw(ctx, 0); rec.start(1000);
+  const t0 = performance.now();
+  await new Promise(res => {
+    const step = () => {
+      const t = (performance.now() - t0) / 1000;
+      if (EXP.cancel || t >= scene.loop) { res(); return; }
+      scene.draw(ctx, t); prog(t / scene.loop); setTimeout(step, 1000 / scene.fps);
+    };
+    step();
+  });
+  rec.stop(); await stopped; stream.getTracks().forEach(t => t.stop());
+  if (EXP.cancel) return null;
+  return {blob:new Blob(chunks, {type:mime.split(';')[0]}), ext: mime.startsWith('video/mp4') ? 'mp4' : 'webm'};
+}
+
+/* ---- which slides, and what to call the files ---- */
+/* ---- which slides, and what to call the files ---- */
+function expList(scope){
+  const out = [];
+  const slug = t => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
+  timeline().forEach((s, idx) => {
+    if (scope === 'current' && idx !== state.idx) return;
+    const name = `wppt_${String(idx).padStart(2, '0')}_${slug(s.kv ? 'key-visual' : s.title)}`;
+    out.push({idx, name, label: s.kv ? 'Key visual' : s.title});
+  });
+  return out;
+}
+
+async function expDownloader(){
+  let dl = null;
+  try { if (window.claude && claude.use) dl = await claude.use('downloads'); } catch(e){}
+  return async (blob, name) => {
+    if (dl) { try { await dl.save({filename:name, data:blob}); return 'saved'; } catch(e){ return e && e.code === 'declined' ? 'declined' : 'failed'; } }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.style.display = 'none';
+    document.body.append(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 15000);
+    await new Promise(r => setTimeout(r, 500));
+    return 'saved';
+  };
+}
+
+async function expSlide(item, prog){
+  state.auto = false; state.idx = item.idx; render(false);
+  const s = timeline()[item.idx];
+  return expEncode(expScene(s, item.name), prog);
+}
+
+/* ---- dialog ---- */
+function openExport(){
+  if (EXP.busy) return;
+  const ed = $('editor'); ed.textContent = ''; ed.classList.remove('exporting');
+  const f = el('form'); const h = el('h2', null, 'Export videos'); h.id = 'edTitle'; f.append(h);
+  f.append(el('p', null, 'Each slide becomes a 1920×1080 MP4 that loops seamlessly. The key visual loops every 15 seconds, break and section cards every 40 and session slides every 10.'));
+  const lab = el('label', null, 'What to export'); const sel = el('select');
+  [['current', 'This slide'], ['all', 'Every slide in the program']]
+    .forEach(([v, t]) => { const o = el('option', null, t); o.value = v; sel.append(o); });
+  lab.append(sel); f.append(lab);
+  const info = el('p'); f.append(info);
+  const upd = () => { const n = expList(sel.value).length; info.textContent = `${n} video${n === 1 ? '' : 's'}. Keep this tab open and visible while it runs.`; };
+  sel.onchange = upd; upd();
+  const row = el('div', 'row'); const cancel = el('button', null, 'Cancel'); cancel.type = 'button'; cancel.onclick = closeEditor;
+  const go = el('button', 'primary', 'Start export'); go.type = 'submit'; row.append(cancel, go); f.append(row);
+  f.onsubmit = e => { e.preventDefault(); runExport(sel.value); };
+  ed.append(f); ed.classList.add('open');
+}
+
+async function runExport(scope){
+  const items = expList(scope), ed = $('editor');
+  const saved = {idx:state.idx, auto:state.auto};
+  EXP.busy = true; EXP.cancel = false;
+  ed.textContent = ''; ed.classList.add('exporting', 'open');
+  const card = el('div', 'card'); const h = el('h2', null, 'Exporting…'); const status = el('p', null, '');
+  const track = el('div', 'track'); const fill = el('div', 'fill'); track.append(fill);
+  const note = el('p', null, 'Keep this tab open and visible. Files are saved to your downloads as they finish.');
+  const row = el('div', 'row'); const stop = el('button', null, 'Stop'); row.append(stop);
+  stop.onclick = () => { EXP.cancel = true; stop.disabled = true; status.textContent = 'Stopping…'; };
+  card.append(h, status, track, note, row); ed.append(card);
+  let done = 0, failMsg = '';
+  try {
+    await document.fonts.ready; await expTexture();
+    const save = await expDownloader();
+    for (let n = 0; n < items.length && !EXP.cancel; n++) {
+      status.textContent = `${n + 1} of ${items.length}: ${items[n].label}`;
+      const res = await expSlide(items[n], p => { fill.style.width = (((n + p) / items.length) * 100).toFixed(1) + '%'; });
+      if (!res) break;
+      if (res.test) { done++; window.__EXP_RESULT = res; continue; }
+      const r = await save(res.blob, items[n].name + '.' + res.ext);
+      if (r === 'declined') { EXP.cancel = true; break; }
+      if (r === 'saved') done++;
+    }
+  } catch(e){ failMsg = (e && e.message) || String(e); }
+  state.idx = saved.idx; state.auto = saved.auto;
+  EXP.busy = false; render(true);
+  ed.classList.remove('exporting');
+  h.textContent = failMsg ? 'Export stopped' : EXP.cancel ? 'Export stopped' : 'Export finished';
+  status.textContent = failMsg ? failMsg : `${done} of ${items.length} video${items.length === 1 ? '' : 's'} saved.`;
+  fill.style.width = (failMsg || EXP.cancel ? fill.style.width : '100%');
+  row.textContent = ''; const close = el('button', 'primary', 'Close'); close.onclick = closeEditor; row.append(close);
+  window.__EXP_DONE = {done, total:items.length, failMsg};
+}
+
+/* ---------- boot ---------- */
+fit();
+kvInit(); pxInit();
+if (!readHash()) { const ls = liveState(); state.idx = ls.idx; }
+render(true);
+wake();
+(async () => {
+  await CONFIG.boot();   // server clock + remote reload
+  tick();
+  setInterval(tick, 15000);
+  CONFIG.startPolling();
+})();
+</script>
+</body>
+</html>
